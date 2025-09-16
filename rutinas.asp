@@ -8,11 +8,112 @@
 '''Const dbUS="plope311_sabium"
 '''Const dbPW="galolola2930@+sql"
 
-Const dbServer="10.70.80.45" 
-Const dbDB="SAB_DEV"
-Const dbUS="sab"
-Const dbPW="ususab"
+Dim dbServer, dbDB, dbUS, dbPW
+dbServer = "10.70.80.45"
+dbDB = "SAB_DEV"
+dbUS = "sab"
+dbPW = "ususab"
 
+LoadDatabaseConfigOverrides
+ApplyRuntimeConfigOverrides
+
+
+Sub LoadDatabaseConfigOverrides()
+    Dim configPath, fso, configStream, configScript
+    On Error Resume Next
+    configPath = Server.MapPath("config/db_config.asp")
+    If Err.Number <> 0 Then
+        Err.Clear
+        On Error GoTo 0
+        Exit Sub
+    End If
+
+    Set fso = Server.CreateObject("Scripting.FileSystemObject")
+    If Err.Number <> 0 Then
+        Err.Clear
+        On Error GoTo 0
+        Exit Sub
+    End If
+
+    If fso.FileExists(configPath) Then
+        Set configStream = fso.OpenTextFile(configPath, 1, False)
+        If Err.Number = 0 Then
+            configScript = configStream.ReadAll()
+            configStream.Close()
+            ExecuteGlobal configScript
+            If Err.Number <> 0 Then
+                Err.Clear
+            End If
+        Else
+            Err.Clear
+        End If
+        Set configStream = Nothing
+    End If
+
+    Set fso = Nothing
+    On Error GoTo 0
+End Sub
+
+Sub ApplyRuntimeConfigOverrides()
+    Call OverrideConfigValue(dbServer, "SABIUM_DB_SERVER")
+    Call OverrideConfigValue(dbDB, "SABIUM_DB_DATABASE")
+    Call OverrideConfigValue(dbDB, "SABIUM_DB_NAME")
+    Call OverrideConfigValue(dbUS, "SABIUM_DB_USER")
+    Call OverrideConfigValue(dbPW, "SABIUM_DB_PASSWORD")
+    Call OverrideConfigValue(dbPW, "SABIUM_DB_PW")
+End Sub
+
+Sub OverrideConfigValue(ByRef destination, ByVal key)
+    Dim value
+    value = ResolveApplicationSetting(key)
+    If Len(value) = 0 Then
+        value = ResolveEnvironmentValue(key)
+    End If
+    If Len(value) > 0 Then
+        destination = value
+    End If
+End Sub
+
+Function ResolveApplicationSetting(key)
+    Dim value
+    On Error Resume Next
+    value = Application(key)
+    If Err.Number <> 0 Then
+        Err.Clear
+        value = ""
+    End If
+    On Error GoTo 0
+    If IsNull(value) Or IsEmpty(value) Then
+        ResolveApplicationSetting = ""
+    Else
+        ResolveApplicationSetting = Trim(CStr(value))
+    End If
+End Function
+
+Function ResolveEnvironmentValue(varName)
+    Dim shell, rawValue
+    rawValue = ""
+    On Error Resume Next
+    Set shell = Server.CreateObject("WScript.Shell")
+    If Err.Number = 0 Then
+        rawValue = shell.ExpandEnvironmentStrings("%" & varName & "%")
+        If rawValue = "%" & varName & "%" Then
+            rawValue = ""
+        End If
+    Else
+        Err.Clear
+    End If
+    If Not shell Is Nothing Then
+        Set shell = Nothing
+    End If
+    On Error GoTo 0
+    If IsNull(rawValue) Or IsEmpty(rawValue) Then
+        ResolveEnvironmentValue = ""
+
+    Else
+        ResolveEnvironmentValue = Trim(CStr(rawValue))
+    End If
+End Function
 
 '---- CursorTypeEnum Values ----
 Const adOpenForwardOnly = 0
@@ -38,9 +139,26 @@ Const adLockPessimistic = 2
 Const adLockOptimistic = 3
 Const adLockBatchOptimistic = 4
 
-'------------------- Funciones para facilitar la conexión a la base de datos -------------------
+	Dim connectionString
+	Dim connectionError
+	
+	connectionString = "Provider=SQLOLEDB;SERVER=" _
+	On Error Resume Next
+	db.Open connectionString
+	If Err.Number <> 0 Then
+		connectionError = "No fue posible conectarse a la base de datos "" & dbDB & "" en el servidor "" & dbServer & "". " & _
+		                  "Verifique el archivo config/db_config.asp o las variables de entorno SABIUM_DB_*."
+		If Len(Err.Description) > 0 Then
+			connectionError = connectionError & " Detalles: " & Err.Description
+		End If
+		Err.Clear
+		On Error GoTo 0
+		Set db = Nothing
+		Err.Raise vbObjectError + 1000, "Conectar_ADM", connectionError
+	End If
+	On Error GoTo 0
+	Set Conectar_ADM = db
 
-Function Conectar_ADM() ' as ADODB.Connection
 	Dim db ' as ADODB.Connection
 	Set db = Server.CreateObject("ADODB.Connection")
 					
@@ -152,7 +270,7 @@ end function %>
 <%
 
 function eliminaSQLinyeccion(strpararevisar)
-	  ListaNegra = Array("dir","--", ";", "/*", "*/", "@@","select","update","insert","upload","from","union","like","join"," and"," or","delete","set","create","drop","into","table","where","values","order","having","xp","xp_cmdshell","cmdshell","cmd","shell","declare","exec","script","varchar","execute","1=1?","true","false","char","null","substring","dbo","limit","sysobjects","begin","waitfor","declare","if","exists","pg_sleep","collate","admin","ping","xp_","convert","latin","pass","chr","hex","#","‘","'",";","(",")","$","%","-1?","=",",","+","*","?","&","{","}","|","!","'","<",">","""","alert","%E27","+--+","img src=","xml","like","%26","%27","%3D","%28","%29","->","&","’","=","(",")","%3D","%28","%29","%2C","%2F","%2B","wait for delay","delay","wait","ltrim")
+	  ListaNegra = Array("dir","--", ";", "/*", "*/", "@@","select","update","insert","upload","from","union","like","join"," and"," or","delete","set","create","drop","into","table","where","values","order","having","xp","xp_cmdshell","cmdshell","cmd","shell","declare","exec","script","varchar","execute","1=1?","true","false","char","null","substring","dbo","limit","sysobjects","begin","waitfor","declare","if","exists","pg_sleep","collate","admin","ping","xp_","convert","latin","pass","chr","hex","#","â€˜","'",";","(",")","$","%","-1?","=",",","+","*","?","&","{","}","|","!","'","<",">","""","alert","%E27","+--+","img src=","xml","like","%26","%27","%3D","%28","%29","->","&","â€™","=","(",")","%3D","%28","%29","%2C","%2F","%2B","wait for delay","delay","wait","ltrim")
 	  If (IsEmpty(strpararevisar)) Then
 	    Exit Function
 	  ElseIf (StrComp(strpararevisar, "") = 0) Then
@@ -188,7 +306,7 @@ Function TimeToMinutes(timeStr)
 		mn = CInt(parts(1))
 		TimeToMinutes = (hr * 60) + mn
 	Else
-		TimeToMinutes = -1 ' Indicar error o formato no válido
+		TimeToMinutes = -1 ' Indicar error o formato no vÃ¡lido
 	End If
 End Function	
 %>
