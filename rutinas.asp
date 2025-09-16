@@ -8,11 +8,12 @@
 '''Const dbUS="plope311_sabium"
 '''Const dbPW="galolola2930@+sql"
 
-Dim dbServer, dbDB, dbUS, dbPW
+Dim dbServer, dbDB, dbUS, dbPW, dbConnectionString
 dbServer = "10.70.80.45"
 dbDB = "SAB_DEV"
 dbUS = "sab"
 dbPW = "ususab"
+dbConnectionString = ""
 
 LoadDatabaseConfigOverrides
 ApplyRuntimeConfigOverrides
@@ -61,6 +62,8 @@ Sub ApplyRuntimeConfigOverrides()
     Call OverrideConfigValue(dbUS, "SABIUM_DB_USER")
     Call OverrideConfigValue(dbPW, "SABIUM_DB_PASSWORD")
     Call OverrideConfigValue(dbPW, "SABIUM_DB_PW")
+    Call OverrideConfigValue(dbConnectionString, "SABIUM_DB_CONNECTION_STRING")
+    Call OverrideConfigValue(dbConnectionString, "SABIUM_DB_CONNSTRING")
 End Sub
 
 Sub OverrideConfigValue(ByRef destination, ByVal key)
@@ -139,36 +142,58 @@ Const adLockPessimistic = 2
 Const adLockOptimistic = 3
 Const adLockBatchOptimistic = 4
 
-	Dim connectionString
-	Dim connectionError
-	
-	connectionString = "Provider=SQLOLEDB;SERVER=" _
-	On Error Resume Next
-	db.Open connectionString
-	If Err.Number <> 0 Then
-		connectionError = "No fue posible conectarse a la base de datos "" & dbDB & "" en el servidor "" & dbServer & "". " & _
-		                  "Verifique el archivo config/db_config.asp o las variables de entorno SABIUM_DB_*."
-		If Len(Err.Description) > 0 Then
-			connectionError = connectionError & " Detalles: " & Err.Description
-		End If
-		Err.Clear
-		On Error GoTo 0
-		Set db = Nothing
-		Err.Raise vbObjectError + 1000, "Conectar_ADM", connectionError
-	End If
-	On Error GoTo 0
-	Set Conectar_ADM = db
+Function BuildConnectionString()
+    Dim trimmedCustom
+    trimmedCustom = Trim(CStr(dbConnectionString))
+    If Len(trimmedCustom) > 0 Then
+        BuildConnectionString = trimmedCustom
+    Else
+        BuildConnectionString = "Provider=SQLOLEDB;SERVER=" _
+                                & dbServer _
+                                & ";Database=" & dbDB _
+                                & ";UID=" & dbUS _
+                                & ";PWD=" & dbPW
+    End If
+End Function
 
-	Dim db ' as ADODB.Connection
-	Set db = Server.CreateObject("ADODB.Connection")
-					
-	db.Open "Provider=SQLOLEDB;SERVER=" _
-					 & dbServer _
-					 & ";Database=" & dbDB _
-					 & ";UID=" & dbUS _
-					 & ";PWD=" &  dbPW
-	Set Conectar_ADM = db
-	
+Function Conectar_ADM()
+    Dim db
+    Dim connectionString
+    Dim connectionError
+    Dim usingCustomConnection
+
+    Set db = Server.CreateObject("ADODB.Connection")
+
+    connectionString = BuildConnectionString()
+    usingCustomConnection = Len(Trim(CStr(dbConnectionString))) > 0
+
+    If Len(connectionString) = 0 Then
+        Err.Raise vbObjectError + 1000, "Conectar_ADM", _
+                  "No se definió una cadena de conexión válida."
+    End If
+
+    On Error Resume Next
+    db.Open connectionString
+    If Err.Number <> 0 Then
+        If usingCustomConnection Then
+            connectionError = "No fue posible conectarse utilizando la cadena de conexión " _
+                              & "configurada en config/db_config.asp o en las variables de entorno SABIUM_DB_*."
+        Else
+            connectionError = "No fue posible conectarse a la base de datos """ & dbDB & """ " _
+                              & "en el servidor """ & dbServer & """. " _
+                              & "Verifique el archivo config/db_config.asp o las variables de entorno SABIUM_DB_*."
+        End If
+        If Len(Err.Description) > 0 Then
+            connectionError = connectionError & " Detalles: " & Err.Description
+        End If
+        Err.Clear
+        On Error GoTo 0
+        Set db = Nothing
+        Err.Raise vbObjectError + 1000, "Conectar_ADM", connectionError
+    End If
+    On Error GoTo 0
+
+    Set Conectar_ADM = db
 End Function
 %>
 <% FUNCTION  nohaysolonumeros(cadena)
